@@ -1,0 +1,4 @@
+1
+	Sem combiner: 28.99 s
+2
+	Com combiner: 15.78 s
