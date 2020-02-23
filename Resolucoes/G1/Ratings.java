@@ -50,15 +50,13 @@ public class Ratings {
     public static class MyReducer2 extends Reducer<Text, FloatWritable,Text, FloatWritable> {
         @Override
         protected void reduce(Text key, Iterable<FloatWritable> values, Context context) throws IOException, InterruptedException {
-            Float sum = (float) 0;
             for(FloatWritable value: values) {
-                sum+=value.get();
+                context.write(key, new FloatWritable(value.get()));
             }
-            context.write(key, new FloatWritable(sum));
         }
     }
 
-    /*public static class RatingComparator extends WritableComparator {
+    public static class RatingComparator extends WritableComparator {
 
         @Override
         public int compare(byte[] b1, int s1, int l1, byte[] b2, int s2, int l2) {
@@ -68,7 +66,7 @@ public class Ratings {
 
             return v1.compareTo(v2) * (-1);
         }
-    }*/
+    }
 
     public static void main(String[] args) throws Exception {
         // ------------------------------ Job 1 -------------------------------------
@@ -87,8 +85,6 @@ public class Ratings {
 
         job.setOutputFormatClass(TextOutputFormat.class);
         TextOutputFormat.setOutputPath(job, new Path("tmp"));
-
-        //job.setSortComparatorClass(RatingComparator.class);
 
         job.waitForCompletion(true);
 
@@ -110,6 +106,7 @@ public class Ratings {
         TextOutputFormat.setOutputPath(job2, new Path("out"));
 
         //job2.setSortComparatorClass(RatingComparator.class);
+        job2.setSortComparatorClass(FloatWritable.Comparator.class);
 
         job2.waitForCompletion(true);
     }
