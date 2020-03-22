@@ -26,6 +26,31 @@ COLUMN                CELL
 ##### Exercício 2
 
 No que toca ao povoamento dos atores, esta tarefa mostrou-se bastante mais complexa, uma vez que implicou a uma maior separação dos passos para obter o resultado pretendido. Campos como o nome, nascimento e morte foram carregados diretamente a partir dos dados fornecidos. Já para o cálculo do número de filmes por ator, foi necessário efetuar um primeiro _job_ que agrupasse filmes por ator. Quer isto dizer que cada linha gerada no final deste primeiro _job_ teria o aspeto: ator1 filme1 filme2 ... .
-Executando um job ao resultado obtido, apenas é necessário contar o número de campos separados por um ou mais _tabs_, sendo retirado um, referente ao identificador do ator.
+
+Após o primeiro _job_ os registos da tabela possuem o seguinte aspeto:
+```
+$ get "actors_g4", "nm0048901"
+COLUMN                CELL                                                      
+ Details:BirthYear    timestamp=1584886790326, value=\x5CN                      
+ Details:DeathYear    timestamp=1584886790326, value=\x5CN                      
+ Details:PrimaryName  timestamp=1584886790326, value=Ryan Baker                 
+3 row(s) in 0.1410 seconds
+```
+
+Executando um job ao resultado obtido, apenas é necessário contar o número de campos separados por um ou mais _tabs_, sendo retirado um, referente ao identificador do ator. Tendo-se na tabela registos semelhantes ao seguinte:
+
+```
+$ get "actors_g4", "nm0048903"
+COLUMN                CELL                                                      
+ Details:BirthYear    timestamp=1584886790326, value=\x5CN                      
+ Details:DeathYear    timestamp=1584886790326, value=\x5CN                      
+ Details:PrimaryName  timestamp=1584886790326, value=Said Baker                 
+ Details:TotalMovies  timestamp=1584888961626, value=\x00\x00\x00\x00\x00\x00\x0
+                      0\x03                                                     
+4 row(s) in 0.0370 seconds
+```
+
+
+
 
 
