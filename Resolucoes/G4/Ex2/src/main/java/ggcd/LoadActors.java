@@ -93,15 +93,26 @@ public class LoadActors {
 
 
     public static class MapperTop3Movies extends Mapper<LongWritable, Text, NullWritable, Put> {
+        private Connection conn;
+        private Table ht;
+
+        @Override
+        protected void setup(Context context) throws IOException, InterruptedException {
+            Configuration conf = context.getConfiguration();
+            this.conn = ConnectionFactory.createConnection(conf);
+            this.ht = this.conn.getTable(TableName.valueOf("movies"));
+        }
+
+        @Override
+        protected void cleanup(Context context) throws IOException, InterruptedException {
+            this.ht.close();
+            this.conn.close();
+        }
+
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException{
             String[] fields = value.toString().split("\t+");
 
-            // Pouco otimizado....
-            Configuration conf2 = HBaseConfiguration.create();
-            conf2.set("hbase.zookeeper.quorum","zoo");
-            Connection conn2 = ConnectionFactory.createConnection(conf2);
-            Table ht = conn2.getTable(TableName.valueOf("movies"));
             // GET -> Ratings
             List<Pair<String, Float>> top3 = new ArrayList<>();
             for(int i = 1; i < fields.length; i++){
@@ -122,8 +133,6 @@ public class LoadActors {
                     else top3.add(p);
                 }
             }
-            ht.close();
-            conn2.close();
 
             String top_movies = top3.toString();
             Put put = new Put(Bytes.toBytes(fields[0]));
