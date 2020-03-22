@@ -65,8 +65,7 @@ public class LoadMovies {
         job.setOutputFormatClass(TableOutputFormat.class);
 
         job.getConfiguration().set(TableOutputFormat.OUTPUT_TABLE, "movies");
-        TextOutputFormat.setOutputPath(job, new Path("hdfs://namenode:9000/output/load"));
-
+        
         job.waitForCompletion(true);
 
     }
