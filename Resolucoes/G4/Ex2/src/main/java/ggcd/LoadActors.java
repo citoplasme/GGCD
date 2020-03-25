@@ -18,13 +18,17 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.MultipleInputs;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 import ggcd.Pair;
 
 public class LoadActors {
@@ -91,7 +95,7 @@ public class LoadActors {
         }
     }
 
-
+    /*
     public static class MapperTop3Movies extends Mapper<LongWritable, Text, NullWritable, Put> {
         private Connection conn;
         private Table ht;
@@ -115,33 +119,129 @@ public class LoadActors {
 
             // GET -> Ratings
             List<Pair<String, Float>> top3 = new ArrayList<>();
+
             for(int i = 1; i < fields.length; i++){
                 Get g = new Get(Bytes.toBytes(fields[i]));
-                Result result = ht.get(g);
-                byte [] rating_bytes = result.getValue(Bytes.toBytes("Details"),Bytes.toBytes("Rating"));
-                String rating = Bytes.toString(rating_bytes);
-                if(rating != null){
-                    float frat = Float.parseFloat(rating);
-                    Pair<String, Float> p = new Pair<>(fields[i], frat);
-                    if(top3.size() >= 3){
-                        if(p.getValue() > top3.get(2).getValue()){
-                            top3.add(p);
-                            top3.sort((a, b) -> b.getValue().compareTo(a.getValue()));
-                            top3.remove(3);
+                g.addColumn(Bytes.toBytes("Details"),Bytes.toBytes("Rating"));
+                try {
+                    Result getResult = this.ht.get(g);
+                    String rating = (Bytes.toString(getResult.value()));
+                    if(rating != null){
+                        float frat = Float.parseFloat(rating);
+                        Pair<String, Float> p = new Pair<>(fields[i], frat);
+                        if(top3.size() >= 3){
+                            if(p.getValue() > top3.get(2).getValue()){
+                                top3.add(p);
+                                top3.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+                                top3.remove(3);
+                            }
                         }
+                        else top3.add(p);
                     }
-                    else top3.add(p);
-                }
+                } catch (IOException e) {}
             }
-
             String top_movies = top3.toString();
             Put put = new Put(Bytes.toBytes(fields[0]));
             put.addColumn(Bytes.toBytes("Details"), Bytes.toBytes("Top3Movies"), Bytes.toBytes(top_movies));
             context.write(null, put);
         }
     }
+    */
 
+    // TOP 3 com Shuffle
+    // Filme User
+    public static class MyMapperTOP extends Mapper<LongWritable, Text, Text, Text> {
+        @Override
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String[] fields = value.toString().split("\t+");
+            for(int i = 1; i < fields.length; i++)
+                context.write(new Text(fields[i]), new Text("L " + fields[0]));
+        }
+    }
 
+    // Filme Rating
+    public static class MyMapperTOP2 extends Mapper<LongWritable, Text, Text, Text> {
+        @Override
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            if (key.get() == 0)
+                return;
+            String[] fields = value.toString().split("\t+");
+            context.write(new Text(fields[0]), new Text("R " + fields[1]));
+        }
+    }
+
+    public static class MyReducerTOP extends Reducer<Text, Text,Text, Text> {
+        @Override
+        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            String user = "", rating = "";
+
+            for(Text value: values) {
+                if (value.charAt(0) == 'R'){
+                    rating = value.toString().replace("R ","");
+                }
+                else if (value.charAt(0) == 'L'){
+                    user = value.toString().replace("L ","");
+                }
+            }
+            context.write(new Text(user), new Text(key + "#" + rating));
+        }
+    }
+
+    public static class MapperGroup extends Mapper<LongWritable, Text, Text, Text> {
+
+        @Override
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String[] words = value.toString().split("\t+");
+            context.write(new Text(words[0]), new Text(words[1]));
+        }
+    }
+
+    public static class ReducerGroup extends Reducer<Text, Text,Text, Text> {
+        @Override
+        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            StringBuilder s = new StringBuilder();
+            for(Text value: values) {
+                s.append("\t");
+                s.append(value);
+            }
+            context.write(key, new Text(s.toString()));
+        }
+    }
+
+    public static class MapperTop3Movies extends Mapper<LongWritable, Text, NullWritable, Put> {
+        @Override
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException{
+            if (key.get() == 0){
+                return;
+            }
+            String[] fields = value.toString().split("\t+");
+
+            // GET -> Ratings
+            List<Pair<String, Float>> top3 = new ArrayList<>();
+
+            for(int i = 1; i < fields.length; i++){
+                if(fields[i] != null) {
+                    fields[i] = fields[i].replaceAll("\\s+","");
+                    String[] par = fields[i].split("#", 2);
+                    if (par.length == 2 && par[1] != null && !par[1].trim().isEmpty() && par[0] != null && !par[0].trim().isEmpty()) {
+                        float rating = Float.parseFloat(par[1]);
+                        Pair<String, Float> p = new Pair<>(par[0], rating);
+                        if (top3.size() >= 3) {
+                            if (p.getValue() > top3.get(2).getValue()) {
+                                top3.add(p);
+                                top3.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+                                top3.remove(3);
+                            }
+                        } else top3.add(p);
+                    }
+                }
+            }
+            String top_movies = top3.toString();
+            Put put = new Put(Bytes.toBytes(fields[0]));
+            put.addColumn(Bytes.toBytes("Details"), Bytes.toBytes("Top3Movies"), Bytes.toBytes(top_movies));
+            context.write(null, put);
+        }
+    }
 
     public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
         Configuration conf = HBaseConfiguration.create();
@@ -213,22 +313,55 @@ public class LoadActors {
         */
 
         // ------------------ Carregamento do Top 3 de Filmes por Ator na BD ------------------
-
+        /*
         Job job4 = Job.getInstance(conf,"top_3_movies_by_actor");
         job4.setJarByClass(LoadActors.class);
-        job4.setMapperClass(MapperTop3Movies.class);
-        job4.setNumReduceTasks(0);
-        job4.setOutputKeyClass(NullWritable.class);
-        job4.setOutputValueClass(Put.class);
-
+        job4.setReducerClass(MyReducerTOP.class);
+        job4.setOutputKeyClass(Text.class);
+        job4.setOutputValueClass(Text.class);
         job4.setInputFormatClass(TextInputFormat.class);
-        TextInputFormat.setInputPaths(job4, "hdfs://namenode:9000/output/tmp/part-r-00000");
-
-        job4.setOutputFormatClass(TableOutputFormat.class);
-
-        job4.getConfiguration().set(TableOutputFormat.OUTPUT_TABLE, "actors_g4");
-
+        MultipleInputs.addInputPath(job4, new Path("hdfs://namenode:9000/output/tmp/part-r-00000"), TextInputFormat.class, MyMapperTOP.class);
+        MultipleInputs.addInputPath(job4, new Path("hdfs://namenode:9000/input/data.tsv.gz"), TextInputFormat.class, MyMapperTOP2.class);
+        job4.setOutputFormatClass(TextOutputFormat.class);
+        TextOutputFormat.setOutputPath(job4, new Path("hdfs://namenode:9000/output/top3movies"));
         job4.waitForCompletion(true);
+        // ----------------------------
+        Job job5 = Job.getInstance(conf, "top_3_movies_by_actor_2");
+
+        job5.setJarByClass(LoadActors.class);
+        job5.setMapperClass(MapperGroup.class);
+        job5.setCombinerClass(ReducerGroup.class); // Combines the values before the reducer
+        job5.setReducerClass(ReducerGroup.class);
+
+        job5.setOutputKeyClass(Text.class);
+        job5.setOutputValueClass(Text.class);
+
+        job5.setInputFormatClass(TextInputFormat.class);
+        TextInputFormat.setInputPaths(job5, "hdfs://namenode:9000/output/top3movies/part-r-00000");
+
+        job5.setOutputFormatClass(TextOutputFormat.class);
+        TextOutputFormat.setOutputPath(job5, new Path("hdfs://namenode:9000/output/top3grouped/"));
+
+        job5.waitForCompletion(true);
+
+        */
+        // Atualização da Tabela ------------------
+        Job job6 = Job.getInstance(conf,"top_3_movies_by_actor_final");
+        job6.setJarByClass(LoadActors.class);
+        job6.setMapperClass(MapperTop3Movies.class);
+        job6.setNumReduceTasks(0);
+        job6.setOutputKeyClass(NullWritable.class);
+        job6.setOutputValueClass(Put.class);
+
+        job6.setInputFormatClass(TextInputFormat.class);
+        TextInputFormat.setInputPaths(job6, "hdfs://namenode:9000/output/top3grouped/part-r-00000");
+
+        job6.setOutputFormatClass(TableOutputFormat.class);
+
+        job6.getConfiguration().set(TableOutputFormat.OUTPUT_TABLE, "actors_g4");
+
+        job6.waitForCompletion(true);
+
 
 
 
