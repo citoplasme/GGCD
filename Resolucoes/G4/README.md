@@ -50,6 +50,20 @@ COLUMN                CELL
 4 row(s) in 0.0370 seconds
 ```
 
+No que toca ao cálculo do _top_ 3 filmes do ator, sendo este _top_ baseado nos _ratings_ dos filmes, a ideia passou por começar com um _job_ que tirasse proveito de _shuffle join_. Para isso, o _job_ recebe como argumento dois ficheiros, um com o identificador do filme e o respetivo _rating_ e outro com o identificador do ator associado à listagem de filmes em que participou. A ideia é gerar contextos do tipo: __filme R+rating__ e __filme L+ator__. Depois, no _reducer_ é gerado um contexto do tipo __ator filme#rating__, permitindo que, com outro job, se associe por cada ator uma listagem dos filmes em que participou, com os respetivos _ratings_. No final, correndo-se outro _job_, apenas se calcula a lista dos 3 filmes melhor cotados associados àquela entrada no ficheiro gerado pelo _job_ anterior.
+O resultado deste _job_ pode ser visível em seguida.
+
+```
+get "actors_g4", "nm0000001"
+COLUMN                CELL                                                      
+ Details:BirthYear    timestamp=1584886788474, value=1899                       
+ Details:DeathYear    timestamp=1584886788474, value=1987                       
+ Details:PrimaryName  timestamp=1584886788474, value=Fred Astaire               
+ Details:Top3Movies   timestamp=1585137315959, value=[tt1298866, tt0816598, tt00
+                      34409]                                                    
+ Details:TotalMovies  timestamp=1584888960577, value=\x00\x00\x00\x00\x00\x00\x0
+                      1'                                                        
+5 row(s) in 0.0790 seconds
 
 
 
