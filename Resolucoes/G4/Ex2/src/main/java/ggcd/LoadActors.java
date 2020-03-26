@@ -24,10 +24,7 @@ import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import ggcd.Pair;
 
@@ -73,18 +70,6 @@ public class LoadActors {
     }
 
     public static class MapperTotalMovies extends Mapper<LongWritable, Text, NullWritable, Put> {
-        @Override
-        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException{
-            String[] fields = value.toString().split("\t+");
-            long total = fields.length - 1;
-            Put put = new Put(Bytes.toBytes(fields[0]));
-            put.addColumn(Bytes.toBytes("Details"), Bytes.toBytes("TotalMovies"), Bytes.toBytes(total));
-            context.write(null, put);
-        }
-    }
-
-    // Assumindo que um colaborador famoso é alguém com mais de 10 filmes realizados -> FAZER
-    public static class MapperCollaborators extends Mapper<LongWritable, Text, NullWritable, Put> {
         @Override
         protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException{
             String[] fields = value.toString().split("\t+");
@@ -243,6 +228,134 @@ public class LoadActors {
         }
     }
 
+    // Assumindo que um colaborador é alguém que trabalhou com o ator
+    public static class MapperActorsByMovie2 extends Mapper<LongWritable, Text, Text, Text> {
+
+        @Override
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String[] words = value.toString().split("\t+");
+
+            if (key.get() == 0)
+                return;
+
+            else {
+                context.write(new Text(words[0]), new Text(words[2]));
+            }
+        }
+    }
+
+    public static class ReducerActorsByMovie2 extends Reducer<Text, Text,Text, Text> {
+        @Override
+        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            StringBuilder s = new StringBuilder();
+            for(Text value: values) {
+                s.append("\t");
+                s.append(value.toString());
+            }
+            context.write(key, new Text(s.toString()));
+        }
+    }
+
+    // Shuffle Join
+    public static class MapperActorsMovie extends Mapper<LongWritable, Text, Text, Text> {
+
+        @Override
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String[] words = value.toString().split("\t+");
+            if (key.get() == 0)
+                return;
+            else {
+                StringBuilder s = new StringBuilder();
+                for(int i = 1; i < words.length; i++){
+                    s.append(words[i]);
+                    s.append("\t");
+                }
+                context.write(new Text(words[0]), new Text("L " + s.toString()));
+            }
+        }
+    }
+
+    public static class MapperActorMovie extends Mapper<LongWritable, Text, Text, Text> {
+
+        @Override
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String[] words = value.toString().split("\t+");
+
+            if (key.get() == 0)
+                return;
+
+            else {
+                context.write(new Text(words[0]), new Text("R " + words[2]));
+            }
+        }
+    }
+
+    public static class ReducerActorsByMovie extends Reducer<Text, Text,Text, Text> {
+        @Override
+        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            String ator = "", lista = "";
+
+            for(Text value: values) {
+                if (value.charAt(0) == 'R'){
+                    ator = value.toString().replace("R ","");
+                }
+                else if (value.charAt(0) == 'L'){
+                    lista = value.toString().replace("L ","");
+                }
+            }
+            context.write(new Text(ator), new Text(lista));
+        }
+    }
+
+    // Agrupar por KEY
+    public static class MapperGroup2 extends Mapper<LongWritable, Text, Text, Text> {
+
+        @Override
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String[] words = value.toString().split("\t+");
+            StringBuilder s = new StringBuilder();
+            for(int i = 1; i < words.length; i++){
+                s.append(words[i]);
+                s.append("\t");
+            }
+            context.write(new Text(words[0]), new Text(s.toString()));
+        }
+    }
+
+    public static class ReducerGroup2 extends Reducer<Text, Text,Text, Text> {
+        @Override
+        protected void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            StringBuilder s = new StringBuilder();
+            for(Text value: values) {
+                s.append(value);
+                //s.append("\t");
+            }
+            context.write(key, new Text(s.toString()));
+        }
+    }
+
+    public static class MapperCollaborators extends Mapper<LongWritable, Text, NullWritable, Put> {
+        @Override
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException{
+            String[] fields = value.toString().split("\t+");
+
+            Set<String> set = new HashSet<>();
+
+            for(int i = 1; i < fields.length; i++){
+                if(!fields[i].equals(fields[0])) { // Ator não é colaborador de si mesmo
+                    set.add(fields[i]);
+                }
+            }
+            String collaborators = set.toString();
+            Put put = new Put(Bytes.toBytes(fields[0]));
+            put.addColumn(Bytes.toBytes("Details"), Bytes.toBytes("Collaborators"), Bytes.toBytes(collaborators));
+            context.write(null, put);
+        }
+    }
+
+
+
+
     public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
         Configuration conf = HBaseConfiguration.create();
         conf.set("hbase.zookeeper.quorum","zoo");
@@ -346,6 +459,7 @@ public class LoadActors {
 
         */
         // Atualização da Tabela ------------------
+        /*
         Job job6 = Job.getInstance(conf,"top_3_movies_by_actor_final");
         job6.setJarByClass(LoadActors.class);
         job6.setMapperClass(MapperTop3Movies.class);
@@ -361,30 +475,81 @@ public class LoadActors {
         job6.getConfiguration().set(TableOutputFormat.OUTPUT_TABLE, "actors_g4");
 
         job6.waitForCompletion(true);
-
+        */
 
 
 
         // ------------------ Colaboradores ------------------
+        // MOVIE LIST(ACTOR)
         /*
-        Job job5 = Job.getInstance(conf,"count_movies_by_actor");
-        job5.setJarByClass(LoadActors.class);
-        job5.setMapperClass(MapperTotalMovies.class);
-        job5.setNumReduceTasks(0);
-        job5.setOutputKeyClass(NullWritable.class);
-        job5.setOutputValueClass(Put.class);
+        Job job7 = Job.getInstance(conf, "collaborators_1");
 
-        job5.setInputFormatClass(TextInputFormat.class);
-        TextInputFormat.setInputPaths(job5, "hdfs://namenode:9000/output/tmp_collaborators/part-r-00000");
+        job7.setJarByClass(LoadActors.class);
+        job7.setMapperClass(MapperActorsByMovie2.class);
+        job7.setCombinerClass(ReducerActorsByMovie2.class); // Combines the values before the reducer
+        job7.setReducerClass(ReducerActorsByMovie2.class);
 
-        job5.setOutputFormatClass(TableOutputFormat.class);
+        job7.setOutputKeyClass(Text.class);
+        job7.setOutputValueClass(Text.class);
 
-        job5.getConfiguration().set(TableOutputFormat.OUTPUT_TABLE, "actors_g4");
+        job7.setInputFormatClass(TextInputFormat.class);
+        TextInputFormat.setInputPaths(job7, "hdfs://namenode:9000/input/data-7.tsv.gz");
 
-        job5.waitForCompletion(true);
+        job7.setOutputFormatClass(TextOutputFormat.class);
+        TextOutputFormat.setOutputPath(job7, new Path("hdfs://namenode:9000/output/actors_by_movie/"));
+
+        job7.waitForCompletion(true);
+        */
+        /*
+        Job job8 = Job.getInstance(conf,"collaborators_2");
+        job8.setJarByClass(LoadActors.class);
+        job8.setReducerClass(ReducerActorsByMovie.class);
+        job8.setOutputKeyClass(Text.class);
+        job8.setOutputValueClass(Text.class);
+        job8.setInputFormatClass(TextInputFormat.class);
+        MultipleInputs.addInputPath(job8, new Path("hdfs://namenode:9000/output/actors_by_movie/part-r-00000"), TextInputFormat.class, MapperActorsMovie.class);
+        MultipleInputs.addInputPath(job8, new Path("hdfs://namenode:9000/input/data-7.tsv.gz"), TextInputFormat.class, MapperActorMovie.class);
+        job8.setOutputFormatClass(TextOutputFormat.class);
+        TextOutputFormat.setOutputPath(job8, new Path("hdfs://namenode:9000/output/collaborators"));
+        job8.waitForCompletion(true);
+        */
+        // Agrupar pela Key
+        /*
+        Job job9 = Job.getInstance(conf, "collaborators_group");
+
+        job9.setJarByClass(LoadActors.class);
+        job9.setMapperClass(MapperGroup2.class);
+        job9.setCombinerClass(ReducerGroup2.class); // Combines the values before the reducer
+        job9.setReducerClass(ReducerGroup2.class);
+
+        job9.setOutputKeyClass(Text.class);
+        job9.setOutputValueClass(Text.class);
+
+        job9.setInputFormatClass(TextInputFormat.class);
+        TextInputFormat.setInputPaths(job9, "hdfs://namenode:9000/output/collaborators/part-r-00000");
+
+        job9.setOutputFormatClass(TextOutputFormat.class);
+        TextOutputFormat.setOutputPath(job9, new Path("hdfs://namenode:9000/output/collaborators_final/"));
+
+        job9.waitForCompletion(true);
         */
 
+        // Atualização da Tabela
+        Job job10 = Job.getInstance(conf,"collaborators_put");
+        job10.setJarByClass(LoadActors.class);
+        job10.setMapperClass(MapperCollaborators.class);
+        job10.setNumReduceTasks(0);
+        job10.setOutputKeyClass(NullWritable.class);
+        job10.setOutputValueClass(Put.class);
 
+        job10.setInputFormatClass(TextInputFormat.class);
+        TextInputFormat.setInputPaths(job10, "hdfs://namenode:9000/output/collaborators_final/part-r-00000");
+
+        job10.setOutputFormatClass(TableOutputFormat.class);
+
+        job10.getConfiguration().set(TableOutputFormat.OUTPUT_TABLE, "actors_g4");
+
+        job10.waitForCompletion(true);
 
         conn.close();
 
