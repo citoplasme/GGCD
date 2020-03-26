@@ -64,7 +64,26 @@ COLUMN                CELL
  Details:TotalMovies  timestamp=1584888960577, value=\x00\x00\x00\x00\x00\x00\x0
                       1'                                                        
 5 row(s) in 0.0790 seconds
+```
 
+Por fim, a ideia para o cálculo dos colaboradores foi bastante semelhante. Tendo dois _inputs_ distintos, um do tipo __Filme Ator__ e outro __Filme Lista(Ator)__, usando _shuffle join_, é possível obter pares do tipo __Ator Lista(Ator)__. Esta lista é referente aos atores que participaram no mesmo filme do ator. Aplicando um _job_ para agrupar as chaves a este resultado, o ficheiro fica pronto a um _job_ de atualização da tabela. Note-se que neste é gerado um _Set_ por cada lista de colaboradores, uma vez que não se pretende observar repetidos, bem como aplicada uma condição em que se ignora o item da lista se ele for o próprio ator em estudo. Desta forma, como se pode ver em seguida, a coluna com informação dos colaboradores tem o aspeto pretendido.
 
+```
+get "actors_g4", "nm0000001"
+COLUMN                                            CELL                                                                                                                                          
+ Details:BirthYear                                timestamp=1584886788474, value=1899                                                                                                           
+ Details:Collaborators                            timestamp=1585219565493, value=[nm0004847, nm0000049, nm0000765, nm0320352, nm0179376, nm0027323, nm0664990, nm0591486, nm2048327, nm0542554, 
+                                                  nm0012196, nm0591485, nm0001417, nm0020537, nm3317570, nm0223290, nm2377837, nm0039838, nm0123611, nm2764227, nm0046331, nm0770196, nm0800808,
+                                                   nm7812696, nm0028644, nm0242409, nm0053267, nm0000859, nm0780750, nm0892143, nm0295044, nm0675273, nm0361875, nm0076282, nm0549359, nm0005464
+                                                  , nm0006752, nm0739347, nm0122675, nm0122875, nm0000742, nm1126630, nm0001677, nm1451334, nm0000267, nm0068691, nm0000268, nm0039051, nm000131
+                                                  3, nm0177731, nm0081748, nm0427775, nm0133310, nm0000781, nm0931868, nm7277740, nm0385807, nm0020239, nm0765109, nm0000748, nm7277741, nm01379
+                                                  99, nm0662955, nm7277739, nm0008066, nm0200488, nm0040644, nm0016776, nm0578459, nm0039938, nm0050639, nm0026802, nm0428278, nm1157487, nm0017
+                                                  651, nm0016361, nm0614500, nm0015391, nm1229000, nm0388913, nm0713073, nm0771349, nm0382295, nm0188050, nm0114089, nm0492747, nm0001362, nm003
+                                                  0019, nm0649701]                                                                                                                              
+ Details:DeathYear                                timestamp=1584886788474, value=1987                                                                                                           
+ Details:PrimaryName                              timestamp=1584886788474, value=Fred Astaire                                                                                                   
+ Details:Top3Movies                               timestamp=1585137315959, value=[tt1298866, tt0816598, tt0034409]                                                                              
+ Details:TotalMovies                              timestamp=1584888960577, value=\x00\x00\x00\x00\x00\x00\x01'                                                                                  
+6 row(s) in 0.0310 seconds
 
 
