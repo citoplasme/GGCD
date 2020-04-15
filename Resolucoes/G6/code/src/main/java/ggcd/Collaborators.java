@@ -41,6 +41,7 @@ public class Collaborators {
                 .groupByKey()
                 .mapToPair(p -> new Tuple2<>(p._1,
                         StreamSupport.stream(p._2.spliterator(),false)
+                                .filter(l -> !p._1.equals(l))
                                 .collect(Collectors.toSet())
                 ))
                 .cache();
